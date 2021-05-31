@@ -1,13 +1,14 @@
+import { promisify } from "util";
+import { Snowflake } from 'snowflake-sdk';
 import * as Bluebird from "bluebird";
-import * as Knex from "knex";
+import { knex, Knex } from "knex";
 import { defer, fromPairs, isArray, map, toPairs } from "lodash";
 
 import { QueryCompiler } from "./query/QueryCompiler";
 import { SchemaCompiler, TableCompiler } from "./schema";
 import * as ColumnBuilder from "knex/lib/schema/columnbuilder";
-import * as ColumnCompiler_MySQL from "knex/lib/dialects/mysql/schema/columncompiler";
-import * as Transaction from "knex/lib/transaction";
-import { promisify } from "util";
+import * as PG_ColumnCompiler from "knex/lib/dialects/postgres/schema/pg-columncompiler";
+import * as Transaction from "knex/lib/execution/transaction";
 
 export class SnowflakeDialect extends Knex.Client {
   constructor(config = {} as any) {
@@ -28,11 +29,11 @@ export class SnowflakeDialect extends Knex.Client {
     super(config);
   }
 
-  public get dialect() {
+  public get dialectName() {
     return "snowflake";
   }
 
-  public get driverName() {
+  public get dialectDriverName() {
     return "snowflake-sdk";
   }
 
@@ -82,20 +83,20 @@ export class SnowflakeDialect extends Knex.Client {
   columnCompiler(tableCompiler: any, columnBuilder: any) {
     // ColumnCompiler methods are created at runtime, so that it does not play well with TypeScript.
     // So instead of extending ColumnCompiler, we override methods at runtime here
-    const columnCompiler = new ColumnCompiler_MySQL(this, tableCompiler.tableBuilder, columnBuilder);
+    const columnCompiler = new PG_ColumnCompiler(this, tableCompiler.tableBuilder, columnBuilder);
     columnCompiler.increments = 'int not null autoincrement primary key';
     columnCompiler.bigincrements = 'bigint not null autoincrement primary key';
 
       columnCompiler.mediumint = (colName: string) => "integer";
     columnCompiler.decimal = (colName: string, precision?: number, scale?: number) => {
       if (precision) {
-        return ColumnCompiler_MySQL.prototype.decimal(colName, precision, scale);
+        return PG_ColumnCompiler.prototype.decimal(colName, precision, scale);
       }
       return "decimal";
     };
     columnCompiler.double = (colName: string, precision?: number, scale?: number) => {
       if (precision) {
-        return ColumnCompiler_MySQL.prototype.decimal(colName, precision, scale);
+        return PG_ColumnCompiler.prototype.decimal(colName, precision, scale);
       }
       return "double";
     };
@@ -113,7 +114,6 @@ export class SnowflakeDialect extends Knex.Client {
   }
 
   _driver() {
-    const Snowflake = require("snowflake-sdk");
     return Snowflake;
   }
 
@@ -246,3 +246,4 @@ export class SnowflakeDialect extends Knex.Client {
   }
 
 }
+
